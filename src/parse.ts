@@ -22,6 +22,9 @@ function toKebabCase(str: string): string {
       ) {
         return ''
       }
+      if (letter === '-') {
+        return '-'
+      }
       return letter.toUpperCase() === letter
         ? `${idx !== 0 ? '-' : ''}${letter.toLowerCase()}`
         : letter
