@@ -1,5 +1,6 @@
 import {marked} from 'marked'
 import {GitHub} from '@actions/github/lib/utils'
+import * as core from '@actions/core'
 
 export interface RepositoryInfo {
   parsedName?: string
@@ -40,6 +41,10 @@ export async function parseIssueToRepositoryInfo(
   issueBody: string
 ): Promise<RepositoryInfo> {
   const tokens = marked.lexer(issueBody)
+
+  core.debug(`Parsed markdown to ${JSON.stringify(tokens, null, 2)}`)
+
+
   const repositoryInfo: RepositoryInfo = {
     canIssueAuthorRequestCreation: false
   }
