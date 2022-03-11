@@ -53,7 +53,7 @@ jobs:
           org_admins: repository-creation-bot/org-admins
           token: ${{ secrets.org-token }}
           event_name: ${{ github.event_name }}
-          event: ${{ github.event }}
+          event: ${{ toJSON(github.event) }}
 
 ```
 

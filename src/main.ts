@@ -1,16 +1,22 @@
 import * as core from '@actions/core'
-import {wait} from './wait'
+import {handleIssues} from './issues'
+import {handleIssueComment} from './issue_comments'
 
 async function run(): Promise<void> {
   try {
-    const ms: string = core.getInput('milliseconds')
-    core.debug(`Waiting ${ms} milliseconds ...`) // debug is only output if you set the secret `ACTIONS_STEP_DEBUG` to true
+    const eventName = core.getInput('event_name')
+    const eventData = JSON.parse(core.getInput('event'))
+    const token = core.getInput('token')
+    const orgAdmins = core.getInput('org_admins')
 
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
-
-    core.setOutput('time', new Date().toTimeString())
+    switch (eventName) {
+      case 'issues':
+        await handleIssues(eventData)
+        break
+      case 'issue_comment':
+        await handleIssueComment(eventData, token, orgAdmins)
+        break
+    }
   } catch (error) {
     if (error instanceof Error) core.setFailed(error.message)
   }
