@@ -1,13 +1,16 @@
 import {marked} from 'marked'
 import {GitHub} from '@actions/github/lib/utils'
 import * as core from '@actions/core'
+import {isatty} from 'tty'
 
 export interface RepositoryInfo {
   parsedName?: string
   sanitizedName?: string
   templateName?: string
   resolvedTemplateName?: string
-  canIssueAuthorRequestCreation: boolean
+  isIssueAuthorAdminInTemplate: boolean
+  commonPrefix?: string
+  canIssueAuthorApproveCreation: boolean
 }
 
 function toKebabCase(str: string): string {
@@ -48,7 +51,8 @@ export async function parseIssueToRepositoryInfo(
   core.debug(`Parsed markdown to ${JSON.stringify(tokens, null, 2)}`)
 
   const repositoryInfo: RepositoryInfo = {
-    canIssueAuthorRequestCreation: false
+    canIssueAuthorApproveCreation: false,
+    isIssueAuthorAdminInTemplate: false
   }
 
   while (tokens.length > 0) {
@@ -82,7 +86,7 @@ export async function parseIssueToRepositoryInfo(
           )
 
           if (repositoryInfo.resolvedTemplateName) {
-            repositoryInfo.canIssueAuthorRequestCreation =
+            repositoryInfo.isIssueAuthorAdminInTemplate =
               await isUserAdminInRepository(
                 api,
                 organizationName,
@@ -96,6 +100,21 @@ export async function parseIssueToRepositoryInfo(
     }
   }
 
+  if (repositoryInfo.sanitizedName && repositoryInfo.resolvedTemplateName) {
+    repositoryInfo.commonPrefix = detectCommonPrefix(
+      repositoryInfo.sanitizedName,
+      repositoryInfo.resolvedTemplateName
+    )
+    repositoryInfo.canIssueAuthorApproveCreation =
+      (repositoryInfo.isIssueAuthorAdminInTemplate &&
+        !!repositoryInfo.commonPrefix) ||
+      (await canUserCreateOrgRepositories(
+        api,
+        organizationName,
+        issueAuthorUsername
+      ))
+  }
+
   return repositoryInfo
 }
 
@@ -105,7 +124,9 @@ async function tryResolveTemplate(
   repositoryName: string
 ): Promise<string | undefined> {
   try {
-    core.debug(`Resolving template repo with owner=${organizationName} and repo=${repositoryName}`)
+    core.debug(
+      `Resolving template repo with owner=${organizationName} and repo=${repositoryName}`
+    )
 
     const response = await api.rest.repos.get({
       owner: organizationName,
@@ -127,8 +148,6 @@ async function isUserAdminInRepository(
   templateName: string,
   issueAuthorUsername: string
 ): Promise<boolean> {
-  // https://docs.github.com/en/rest/reference/collaborators#get-repository-permissions-for-a-user
-
   try {
     const permissionLevel = await api.rest.repos.getCollaboratorPermissionLevel(
       {
@@ -160,4 +179,46 @@ function nextToken(tokens: marked.TokensList): marked.Token | undefined {
 
     return token
   } while (true)
+}
+
+function detectCommonPrefix(
+  repoName: string,
+  templateName: string
+): string | undefined {
+  // we assume kebab-case
+  const repoNameParts = repoName.split('-')
+  const templateNameParts = templateName.split('-')
+  const matchingParts: string[] = []
+
+  let i = 0
+  while (i < repoNameParts.length) {
+    if (repoNameParts[i] == templateNameParts[i]) {
+      matchingParts.push(repoNameParts[i])
+      i++
+    } else {
+      break
+    }
+  }
+
+  return matchingParts.length > 0 ? matchingParts.join('-') : undefined
+}
+
+async function canUserCreateOrgRepositories(
+  api: InstanceType<typeof GitHub>,
+  organizationName: string,
+  username: string
+): Promise<boolean> {
+  try {
+    const membership = await api.rest.orgs.getMembershipForUser({
+      org: organizationName,
+      username: username
+    })
+
+    return (
+      membership.data.permissions?.can_create_repository ??
+      membership.data.role === 'admin'
+    )
+  } catch (e) {
+    return false
+  }
 }

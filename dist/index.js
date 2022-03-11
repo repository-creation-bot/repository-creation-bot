@@ -113,6 +113,9 @@ Parsed Repository Name: '${repositoryInfo.parsedName}'
 Sanitized Repository Name: '${repositoryInfo.sanitizedName}'
 Parsed Template Repository: '${repositoryInfo.templateName}'
 Resolved Template Repository: '${repositoryInfo.resolvedTemplateName}'
+Issue Author is Template Admin: '${repositoryInfo.isIssueAuthorAdminInTemplate}'
+Common Prefix: '${repositoryInfo.commonPrefix}'
+Issue Author can approve: '${repositoryInfo.canIssueAuthorApproveCreation}'
 \`\`\`
 `;
     if (!repositoryInfo.parsedName) {
@@ -127,7 +130,7 @@ Resolved Template Repository: '${repositoryInfo.resolvedTemplateName}'
         return `${base} ⚠️ I could not find any repository with the name \`${repositoryInfo.templateName}\`. Did you mention an existing repository in this organization?
     You can either correct the issue by editing your original request or comment \`/repo-bot ping-admins\` on this issue to ping the organization administators for assistance.`;
     }
-    if (!repositoryInfo.canIssueAuthorRequestCreation) {
+    if (!repositoryInfo.canIssueAuthorApproveCreation) {
         return `${base} ✅ The information about the repository is looks good. But as you are not an admin of the template repository, either a repository or organization admin needs to approve your request. 
     You can either ask any repository or organization admin to approve your request by commenting \`/repo-bot approve\` or comment \`/repo-bot ping-admins\` to ping the organization administrators.`;
     }
@@ -277,7 +280,8 @@ function parseIssueToRepositoryInfo(api, organizationName, issueAuthorUsername, 
         const tokens = marked_1.marked.lexer(issueBody);
         core.debug(`Parsed markdown to ${JSON.stringify(tokens, null, 2)}`);
         const repositoryInfo = {
-            canIssueAuthorRequestCreation: false
+            canIssueAuthorApproveCreation: false,
+            isIssueAuthorAdminInTemplate: false
         };
         while (tokens.length > 0) {
             let token = nextToken(tokens);
@@ -299,12 +303,19 @@ function parseIssueToRepositoryInfo(api, organizationName, issueAuthorUsername, 
                         repositoryInfo.templateName = token.text.trim();
                         repositoryInfo.resolvedTemplateName = yield tryResolveTemplate(api, organizationName, repositoryInfo.templateName);
                         if (repositoryInfo.resolvedTemplateName) {
-                            repositoryInfo.canIssueAuthorRequestCreation =
+                            repositoryInfo.isIssueAuthorAdminInTemplate =
                                 yield isUserAdminInRepository(api, organizationName, repositoryInfo.resolvedTemplateName, issueAuthorUsername);
                         }
                         break;
                 }
             }
+        }
+        if (repositoryInfo.sanitizedName && repositoryInfo.resolvedTemplateName) {
+            repositoryInfo.commonPrefix = detectCommonPrefix(repositoryInfo.sanitizedName, repositoryInfo.resolvedTemplateName);
+            repositoryInfo.canIssueAuthorApproveCreation =
+                (repositoryInfo.isIssueAuthorAdminInTemplate &&
+                    !!repositoryInfo.commonPrefix) ||
+                    (yield canUserCreateOrgRepositories(api, organizationName, issueAuthorUsername));
         }
         return repositoryInfo;
     });
@@ -330,7 +341,6 @@ function tryResolveTemplate(api, organizationName, repositoryName) {
 }
 function isUserAdminInRepository(api, organizationName, templateName, issueAuthorUsername) {
     return __awaiter(this, void 0, void 0, function* () {
-        // https://docs.github.com/en/rest/reference/collaborators#get-repository-permissions-for-a-user
         try {
             const permissionLevel = yield api.rest.repos.getCollaboratorPermissionLevel({
                 owner: organizationName,
@@ -358,6 +368,38 @@ function nextToken(tokens) {
         }
         return token;
     } while (true);
+}
+function detectCommonPrefix(repoName, templateName) {
+    // we assume kebab-case
+    const repoNameParts = repoName.split('-');
+    const templateNameParts = templateName.split('-');
+    const matchingParts = [];
+    let i = 0;
+    while (i < repoNameParts.length) {
+        if (repoNameParts[i] == templateNameParts[i]) {
+            matchingParts.push(repoNameParts[i]);
+            i++;
+        }
+        else {
+            break;
+        }
+    }
+    return matchingParts.length > 0 ? matchingParts.join('-') : undefined;
+}
+function canUserCreateOrgRepositories(api, organizationName, username) {
+    var _a, _b;
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const membership = yield api.rest.orgs.getMembershipForUser({
+                org: organizationName,
+                username: username
+            });
+            return ((_b = (_a = membership.data.permissions) === null || _a === void 0 ? void 0 : _a.can_create_repository) !== null && _b !== void 0 ? _b : membership.data.role === 'admin');
+        }
+        catch (e) {
+            return false;
+        }
+    });
 }
 
 

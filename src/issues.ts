@@ -32,6 +32,9 @@ Parsed Repository Name: '${repositoryInfo.parsedName}'
 Sanitized Repository Name: '${repositoryInfo.sanitizedName}'
 Parsed Template Repository: '${repositoryInfo.templateName}'
 Resolved Template Repository: '${repositoryInfo.resolvedTemplateName}'
+Issue Author is Template Admin: '${repositoryInfo.isIssueAuthorAdminInTemplate}'
+Common Prefix: '${repositoryInfo.commonPrefix}'
+Issue Author can approve: '${repositoryInfo.canIssueAuthorApproveCreation}'
 \`\`\`
 `
 
@@ -50,7 +53,7 @@ Resolved Template Repository: '${repositoryInfo.resolvedTemplateName}'
     You can either correct the issue by editing your original request or comment \`/repo-bot ping-admins\` on this issue to ping the organization administators for assistance.`
   }
 
-  if (!repositoryInfo.canIssueAuthorRequestCreation) {
+  if (!repositoryInfo.canIssueAuthorApproveCreation) {
     return `${base} ✅ The information about the repository is looks good. But as you are not an admin of the template repository, either a repository or organization admin needs to approve your request. 
     You can either ask any repository or organization admin to approve your request by commenting \`/repo-bot approve\` or comment \`/repo-bot ping-admins\` to ping the organization administrators.`
   }
