@@ -7,6 +7,13 @@ export async function handleIssues(
   api: InstanceType<typeof GitHub>,
   eventData: IssuesEvent
 ) {
+  switch (eventData.action) {
+    case 'opened':
+    case 'edited':
+      break // proceed
+    default:
+      return // do not handle
+  }
   core.debug(`Handling issues ${JSON.stringify(eventData, null, 2)}`)
   const repositoryInfo = await parseIssueToRepositoryInfo(
     api,
