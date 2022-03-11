@@ -1,20 +1,32 @@
 import * as core from '@actions/core'
+import github from '@actions/github'
 import {handleIssues} from './issues'
 import {handleIssueComment} from './issue_comments'
+import {
+  IssuesEvent,
+  IssueCommentEvent
+} from '@octokit/webhooks-definitions/schema'
+import {OctokitOptions} from '@octokit/core/dist-types/types'
 
 async function run(): Promise<void> {
   try {
-    const eventName = core.getInput('event_name')
-    const eventData = JSON.parse(core.getInput('event'))
     const token = core.getInput('token')
     const orgAdmins = core.getInput('org_admins')
+    const apiUrl = core.getInput('api_url')
 
-    switch (eventName) {
+    const options: OctokitOptions = apiUrl ? {baseUrl: apiUrl} : {}
+    const octokit = github.getOctokit(token, options)
+
+    switch (github.context.eventName) {
       case 'issues':
-        await handleIssues(eventData)
+        await handleIssues(octokit, github.context.payload as IssuesEvent)
         break
       case 'issue_comment':
-        await handleIssueComment(eventData, token, orgAdmins)
+        await handleIssueComment(
+          octokit,
+          github.context.payload as IssueCommentEvent,
+          orgAdmins
+        )
         break
     }
   } catch (error) {

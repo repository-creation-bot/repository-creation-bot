@@ -31,10 +31,9 @@ template-repository
 
 ### Step Input parameters
 
+* `api_url` The url of the API to use (for GHES).
 * `org_admins` The name of the team which will be pinged if admin level approval is needed.
 * `token` A personal access token which has access to all repos as admin and can create new repos. Will be used for all API interactions to create the repository and comment on the issues.
-* `event_name` Needs to be set to `${{ github.event_name }}` so that the action can decide what to do. 
-* `event` Needs to be set to `${{ github.event }}` so that all data of the event is available and the action can do what it should do. 
 
 ### Full workflow example
 

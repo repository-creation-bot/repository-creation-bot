@@ -2,18 +2,15 @@ name: 'Repository Creation Bot'
 description: 'A bot for creating repositories in a GitHub Organization through Issues and GitHub Actions.'
 author: 'Daniel Kuschny'
 inputs:
+  api_url:
+    required: false
+    description: 'The URL of the API to use, required for GHES.'
   org_admins:
     required: true
     description: 'The name of the team which will be pinged if admin level approval is needed.'
   token:
     required: true
     description: 'A personal access token which has access to all repos as admin and can create new repos. Will be used for all API interactions to create the repository and comment on the issues.'
-  event_name:
-    required: true
-    description: 'Needs to be set to the `github.event_name` variable so that the action can decide what to do. '
-  event:
-    required: true
-    description: 'Needs to be set to to `toJSON(github.event)` so that all data of the event is available and the action can do what it should do. '
 runs:
   using: 'node16'
   main: 'dist/index.js'
