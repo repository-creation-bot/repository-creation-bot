@@ -78,7 +78,7 @@ export async function parseIssueToRepositoryInfo(
           repositoryInfo.resolvedTemplateName = await tryResolveTemplate(
             api,
             organizationName,
-            sanitizeRepositoryName(repositoryInfo.templateName)
+            repositoryInfo.templateName
           )
 
           if (repositoryInfo.resolvedTemplateName) {
@@ -105,6 +105,8 @@ async function tryResolveTemplate(
   repositoryName: string
 ): Promise<string | undefined> {
   try {
+    core.debug(`Resolving template repo with owner=${organizationName} and repo=${repositoryName}`)
+
     const response = await api.rest.repos.get({
       owner: organizationName,
       repo: repositoryName

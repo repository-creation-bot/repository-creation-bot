@@ -297,7 +297,7 @@ function parseIssueToRepositoryInfo(api, organizationName, issueAuthorUsername, 
                             throw new Error('Could not parse template repository name, no paragraph after template repository heading');
                         }
                         repositoryInfo.templateName = token.text.trim();
-                        repositoryInfo.resolvedTemplateName = yield tryResolveTemplate(api, organizationName, sanitizeRepositoryName(repositoryInfo.templateName));
+                        repositoryInfo.resolvedTemplateName = yield tryResolveTemplate(api, organizationName, repositoryInfo.templateName);
                         if (repositoryInfo.resolvedTemplateName) {
                             repositoryInfo.canIssueAuthorRequestCreation =
                                 yield isUserAdminInRepository(api, organizationName, repositoryInfo.resolvedTemplateName, issueAuthorUsername);
@@ -313,6 +313,7 @@ exports.parseIssueToRepositoryInfo = parseIssueToRepositoryInfo;
 function tryResolveTemplate(api, organizationName, repositoryName) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
+            core.debug(`Resolving template repo with owner=${organizationName} and repo=${repositoryName}`);
             const response = yield api.rest.repos.get({
                 owner: organizationName,
                 repo: repositoryName
