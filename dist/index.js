@@ -339,7 +339,7 @@ function nextToken(tokens) {
         if (!token) {
             return token;
         }
-        if (token.type === 'html' && token.text.trimStart().indexOf('<!--')) {
+        if (token.type === 'html' && token.text.trimStart().indexOf('<!--') === 0) {
             continue;
         }
         return token;

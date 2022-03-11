@@ -139,7 +139,7 @@ function nextToken(tokens: marked.TokensList): marked.Token | undefined {
       return token
     }
 
-    if (token.type === 'html' && token.text.trimStart().indexOf('<!--')) {
+    if (token.type === 'html' && token.text.trimStart().indexOf('<!--') === 0) {
       continue
     }
 
