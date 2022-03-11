@@ -43,7 +43,7 @@ function sanitizeRepositoryName(templateName: string): string {
 export async function parseIssueToRepositoryInfo(
   api: InstanceType<typeof GitHub>,
   organizationName: string,
-  issueAuthorUsername: string,
+  issueAuthorUsernameOrActor: string,
   issueBody: string
 ): Promise<RepositoryInfo> {
   const tokens = marked.lexer(issueBody)
@@ -91,7 +91,7 @@ export async function parseIssueToRepositoryInfo(
                 api,
                 organizationName,
                 repositoryInfo.resolvedTemplateName,
-                issueAuthorUsername
+                issueAuthorUsernameOrActor
               )
           }
 
@@ -111,7 +111,7 @@ export async function parseIssueToRepositoryInfo(
       (await canUserCreateOrgRepositories(
         api,
         organizationName,
-        issueAuthorUsername
+        issueAuthorUsernameOrActor
       ))
   }
 

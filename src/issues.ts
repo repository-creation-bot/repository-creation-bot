@@ -28,13 +28,16 @@ export async function handleIssues(
     owner: eventData.repository.owner.login,
     repo: eventData.repository.name,
     issue_number: eventData.issue.number,
-    body: buildRepositoryInfoComment(repositoryInfo)
+    body:
+      '[repo-bot] This is the information I understood: ' +
+      buildRepositoryInfoComment(repositoryInfo)
   })
 }
 
-function buildRepositoryInfoComment(repositoryInfo: RepositoryInfo): string {
-  const base = `[repo-bot] This is the information I understood:
-\`\`\`
+export function buildRepositoryInfoComment(
+  repositoryInfo: RepositoryInfo
+): string {
+  const base = `\`\`\`
 Parsed Repository Name: '${repositoryInfo.parsedName}'
 Sanitized Repository Name: '${repositoryInfo.sanitizedName}'
 Parsed Template Repository: '${repositoryInfo.templateName}'

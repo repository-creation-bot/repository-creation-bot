@@ -41,6 +41,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.handleIssueComment = void 0;
 const core = __importStar(__nccwpck_require__(2186));
+const issues_1 = __nccwpck_require__(6962);
+const parse_1 = __nccwpck_require__(5223);
 function handleIssueComment(api, eventData, orgAdmins) {
     return __awaiter(this, void 0, void 0, function* () {
         switch (eventData.action) {
@@ -65,7 +67,7 @@ function handleIssueComment(api, eventData, orgAdmins) {
                 });
                 break;
             case 'approve':
-                // TODO
+                yield approve(api, eventData);
                 break;
             default:
                 yield api.rest.issues.createComment({
@@ -82,6 +84,85 @@ function handleIssueComment(api, eventData, orgAdmins) {
     });
 }
 exports.handleIssueComment = handleIssueComment;
+function approve(api, eventData) {
+    return __awaiter(this, void 0, void 0, function* () {
+        core.debug(`Starting approval process, checking permissions and repo settings again`);
+        const repositoryInfo = yield (0, parse_1.parseIssueToRepositoryInfo)(api, eventData.repository.owner.login, eventData.comment.user.login, eventData.issue.body);
+        core.debug(`Parsed repository information: ${JSON.stringify(repositoryInfo)}`);
+        if (!repositoryInfo.canIssueAuthorApproveCreation) {
+            yield api.rest.issues.createComment({
+                owner: eventData.repository.owner.login,
+                repo: eventData.repository.name,
+                issue_number: eventData.issue.number,
+                body: `[repo-bot] Sorry but it seems you are not having the required permissions to approve the repository creation 😞.
+      Please reach out to one of the administrators of the \`${repositoryInfo.resolvedTemplateName}\` to approve this request, or
+      use \`/repo-admin ping-admins\` to ping the organization admins for approval. You might want to reach out to them also separately 
+      depending on how urgent and long-running this repository creation might be.`
+            });
+            return;
+        }
+        if (!repositoryInfo.sanitizedName || !repositoryInfo.resolvedTemplateName) {
+            yield api.rest.issues.createComment({
+                owner: eventData.repository.owner.login,
+                repo: eventData.repository.name,
+                issue_number: eventData.issue.number,
+                body: `[repo-bot] Sorry, but it seems there are still some issues with your request. These issues need to be resolved before we can create the repository.` +
+                    (0, issues_1.buildRepositoryInfoComment)(repositoryInfo)
+            });
+            return;
+        }
+        yield api.rest.issues.createComment({
+            owner: eventData.repository.owner.login,
+            repo: eventData.repository.name,
+            issue_number: eventData.issue.number,
+            body: `[repo-bot] Great, some work to do 💪! I will start now creation of your repository, this might take a while until it is completed. 
+    I will close this issue once the repository was created. `
+        });
+        try {
+            const repositoryUrl = yield createRepositoryFromTemplate(api, eventData.repository.owner.login, repositoryInfo.sanitizedName, repositoryInfo.resolvedTemplateName);
+            yield api.rest.issues.createComment({
+                owner: eventData.repository.owner.login,
+                repo: eventData.repository.name,
+                issue_number: eventData.issue.number,
+                body: `[repo-bot] 🥳🎉 The repository creation completed without errors. You can now access the repository at ${repositoryUrl}. Happy coding. I will close this issue now.`
+            });
+            yield api.rest.issues.update({
+                owner: eventData.repository.owner.login,
+                repo: eventData.repository.name,
+                issue_number: eventData.issue.number,
+                state: 'closed'
+            });
+            yield api.rest.issues.lock({
+                owner: eventData.repository.owner.login,
+                repo: eventData.repository.name,
+                issue_number: eventData.issue.number,
+                lock_reason: 'resolved'
+            });
+        }
+        catch (e) {
+            yield api.rest.issues.createComment({
+                owner: eventData.repository.owner.login,
+                repo: eventData.repository.name,
+                issue_number: eventData.issue.number,
+                body: `[repo-bot] Aw, snap! It something went wrong during creation of the repository 😱. I recommend reaching out to the organization administrators to resolve this issue!
+      The repository might have been partially created but better try to let the admins double check. Sorry for the circumstances!
+      The error was: 
+      \`\`\`
+      ${e}
+      \`\`\`
+      `
+            });
+        }
+    });
+}
+function createRepositoryFromTemplate(api, organizationName, repositoryName, templateName) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (Math.random() >= 0.5) {
+            throw new Error('Actual creation is not yet implemented. Still some work to do.');
+        }
+        return 'https://TODO';
+    });
+}
 
 
 /***/ }),
@@ -124,7 +205,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.handleIssues = void 0;
+exports.buildRepositoryInfoComment = exports.handleIssues = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const parse_1 = __nccwpck_require__(5223);
 function handleIssues(api, eventData) {
@@ -143,14 +224,14 @@ function handleIssues(api, eventData) {
             owner: eventData.repository.owner.login,
             repo: eventData.repository.name,
             issue_number: eventData.issue.number,
-            body: buildRepositoryInfoComment(repositoryInfo)
+            body: '[repo-bot] This is the information I understood: ' +
+                buildRepositoryInfoComment(repositoryInfo)
         });
     });
 }
 exports.handleIssues = handleIssues;
 function buildRepositoryInfoComment(repositoryInfo) {
-    const base = `[repo-bot] This is the information I understood:
-\`\`\`
+    const base = `\`\`\`
 Parsed Repository Name: '${repositoryInfo.parsedName}'
 Sanitized Repository Name: '${repositoryInfo.sanitizedName}'
 Parsed Template Repository: '${repositoryInfo.templateName}'
@@ -179,6 +260,7 @@ Issue Author can approve: '${repositoryInfo.canIssueAuthorApproveCreation}'
     return `${base} ✅ The information about the repository is looks good. You are only one step ahead from the repository being created. 
   Comment \`/repo-bot approve\` on this issue to initiate the repository creation`;
 }
+exports.buildRepositoryInfoComment = buildRepositoryInfoComment;
 
 
 /***/ }),
@@ -317,7 +399,7 @@ function sanitizeRepositoryName(templateName) {
     templateName = toKebabCase(templateName);
     return templateName;
 }
-function parseIssueToRepositoryInfo(api, organizationName, issueAuthorUsername, issueBody) {
+function parseIssueToRepositoryInfo(api, organizationName, issueAuthorUsernameOrActor, issueBody) {
     return __awaiter(this, void 0, void 0, function* () {
         const tokens = marked_1.marked.lexer(issueBody);
         core.debug(`Parsed markdown to ${JSON.stringify(tokens, null, 2)}`);
@@ -346,7 +428,7 @@ function parseIssueToRepositoryInfo(api, organizationName, issueAuthorUsername, 
                         repositoryInfo.resolvedTemplateName = yield tryResolveTemplate(api, organizationName, repositoryInfo.templateName);
                         if (repositoryInfo.resolvedTemplateName) {
                             repositoryInfo.isIssueAuthorAdminInTemplate =
-                                yield isUserAdminInRepository(api, organizationName, repositoryInfo.resolvedTemplateName, issueAuthorUsername);
+                                yield isUserAdminInRepository(api, organizationName, repositoryInfo.resolvedTemplateName, issueAuthorUsernameOrActor);
                         }
                         break;
                 }
@@ -357,7 +439,7 @@ function parseIssueToRepositoryInfo(api, organizationName, issueAuthorUsername, 
             repositoryInfo.canIssueAuthorApproveCreation =
                 (repositoryInfo.isIssueAuthorAdminInTemplate &&
                     !!repositoryInfo.commonPrefix) ||
-                    (yield canUserCreateOrgRepositories(api, organizationName, issueAuthorUsername));
+                    (yield canUserCreateOrgRepositories(api, organizationName, issueAuthorUsernameOrActor));
         }
         return repositoryInfo;
     });
