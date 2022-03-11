@@ -15,6 +15,9 @@ export async function handleIssues(
       return // do not handle
   }
   core.debug(`Handling issues ${JSON.stringify(eventData, null, 2)}`)
+
+  core.info(`Parsing user request`)
+
   const repositoryInfo = await parseIssueToRepositoryInfo(
     api,
     eventData.repository.owner.login,
@@ -22,7 +25,7 @@ export async function handleIssues(
     eventData.issue.body
   )
 
-  core.debug(`Parsed info ${repositoryInfo}, commenting`)
+  core.info(`Parsed repository info, will inform user now: ${JSON.stringify(repositoryInfo, null, 2)}`)
 
   await api.rest.issues.createComment({
     owner: eventData.repository.owner.login,

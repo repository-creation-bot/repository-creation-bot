@@ -59,17 +59,20 @@ function handleIssueComment(api, eventData, orgAdmins) {
         const command = text.substring('/repo-bot'.length + 1).toLowerCase();
         switch (command) {
             case 'ping-admins':
+                core.info('Admin ping requested, will add comment to issue');
                 yield api.rest.issues.createComment({
                     owner: eventData.repository.owner.login,
                     repo: eventData.repository.name,
                     issue_number: eventData.issue.number,
                     body: `[repo-bot] Hey @${orgAdmins} 👋! It seems ${eventData.comment.user.login} is either facing troubles or needs your approval for this request.`
                 });
+                core.info('Commented');
                 break;
             case 'approve':
                 yield approve(api, eventData);
                 break;
             default:
+                core.info(`Unknown command ${command} by user, will inform user now`);
                 yield api.rest.issues.createComment({
                     owner: eventData.repository.owner.login,
                     repo: eventData.repository.name,
@@ -79,17 +82,20 @@ function handleIssueComment(api, eventData, orgAdmins) {
 * \`approve\` - approve the request and initiate the repository creation (will fail if user commenting is not allowed to approve) 
         `
                 });
+                core.info('Commented');
                 break;
         }
+        core.info('Handling comment completed');
     });
 }
 exports.handleIssueComment = handleIssueComment;
 function approve(api, eventData) {
     return __awaiter(this, void 0, void 0, function* () {
-        core.debug(`Starting approval process, checking permissions and repo settings again`);
+        core.info(`Starting approval process, checking permissions and repo settings again`);
         const repositoryInfo = yield (0, parse_1.parseIssueToRepositoryInfo)(api, eventData.repository.owner.login, eventData.comment.user.login, eventData.issue.body);
-        core.debug(`Parsed repository information: ${JSON.stringify(repositoryInfo)}`);
+        core.info(`Parsed repository info: ${JSON.stringify(repositoryInfo, null, 2)}`);
         if (!repositoryInfo.canIssueAuthorApproveCreation) {
+            core.info(`User is now allowed to approve, will inform user now`);
             yield api.rest.issues.createComment({
                 owner: eventData.repository.owner.login,
                 repo: eventData.repository.name,
@@ -99,11 +105,13 @@ function approve(api, eventData) {
       use \`/repo-admin ping-admins\` to ping the organization admins for approval. You might want to reach out to them also separately 
       depending on how urgent and long-running this repository creation might be.`
             });
+            core.info(`Commented`);
             return;
         }
         if (repositoryInfo.alreadyExists ||
             !repositoryInfo.sanitizedName ||
             !repositoryInfo.resolvedTemplateName) {
+            core.info(`There are unresolved issues with the request, will inform user now`);
             yield api.rest.issues.createComment({
                 owner: eventData.repository.owner.login,
                 repo: eventData.repository.name,
@@ -111,8 +119,10 @@ function approve(api, eventData) {
                 body: `[repo-bot] Sorry, but it seems there are still some issues with your request. These issues need to be resolved before we can create the repository.` +
                     (0, issues_1.buildRepositoryInfoComment)(repositoryInfo)
             });
+            core.info(`Commented`);
             return;
         }
+        core.info(`Input is OK, will inform user about creation`);
         yield api.rest.issues.createComment({
             owner: eventData.repository.owner.login,
             repo: eventData.repository.name,
@@ -120,28 +130,40 @@ function approve(api, eventData) {
             body: `[repo-bot] Great, some work to do 💪! I will start now creation of your repository, this might take a while until it is completed. 
     I will close this issue once the repository was created. `
         });
+        core.info(`User informed, starting creation`);
         try {
             const repositoryUrl = yield createRepositoryFromTemplate(api, eventData.repository.owner.login, repositoryInfo.sanitizedName, repositoryInfo.resolvedTemplateName);
+            core.info(`Repo creation completed, informing user`);
             yield api.rest.issues.createComment({
                 owner: eventData.repository.owner.login,
                 repo: eventData.repository.name,
                 issue_number: eventData.issue.number,
                 body: `[repo-bot] 🥳🎉 The repository creation completed without errors. You can now access the repository at ${repositoryUrl}. Happy coding. I will close this issue now.`
             });
+            core.info(`User informed, closing issue`);
             yield api.rest.issues.update({
                 owner: eventData.repository.owner.login,
                 repo: eventData.repository.name,
                 issue_number: eventData.issue.number,
                 state: 'closed'
             });
+            core.info(`Issue closed, locking issue as resolved`);
             yield api.rest.issues.lock({
                 owner: eventData.repository.owner.login,
                 repo: eventData.repository.name,
                 issue_number: eventData.issue.number,
                 lock_reason: 'resolved'
             });
+            core.info(`Issue locked`);
         }
         catch (e) {
+            core.error('Repository creation failed, will inform user');
+            if (e instanceof Error) {
+                core.error(e);
+            }
+            else {
+                core.error(e.toString());
+            }
             yield api.rest.issues.createComment({
                 owner: eventData.repository.owner.login,
                 repo: eventData.repository.name,
@@ -159,10 +181,76 @@ function approve(api, eventData) {
 }
 function createRepositoryFromTemplate(api, organizationName, repositoryName, templateName) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (Math.random() >= 0.5) {
-            throw new Error('Actual creation is not yet implemented. Still some work to do.');
-        }
-        return 'https://TODO';
+        core.info(`Loading template repo.`);
+        const template = yield api.rest.repos.get({
+            owner: organizationName,
+            repo: templateName
+        });
+        core.info(`Creating empty repository with right base settings.`);
+        const repository = yield api.rest.repos.createInOrg({
+            org: organizationName,
+            name: repositoryName,
+            allow_auto_merge: template.data.allow_auto_merge,
+            allow_merge_commit: template.data.allow_merge_commit,
+            allow_rebase_merge: template.data.allow_rebase_merge,
+            allow_squash_merge: template.data.allow_squash_merge,
+            auto_init: true,
+            delete_branch_on_merge: template.data.delete_branch_on_merge,
+            baseUrl: undefined,
+            description: undefined,
+            gitignore_template: undefined,
+            has_issues: template.data.has_issues,
+            has_projects: template.data.has_projects,
+            has_wiki: template.data.has_wiki,
+            private: template.data.private,
+            visibility: template.data.visibility,
+            homepage: undefined,
+            is_template: false,
+            license_template: undefined
+        });
+        core.info(`Repository created.`);
+        yield commitCodeowners(api, repository.data, template);
+        yield cloneTeamsAndCollaborators(api, repository.data, template);
+        yield cloneBranchProtections(api, repository.data, template);
+        yield cloneActionPermissions(api, repository.data, template);
+        yield cloneLabels(api, repository.data, template);
+        yield cloneAutolinkReferences(api, repository.data, template);
+        return repository.data.url;
+    });
+}
+function commitCodeowners(api, repository /* TODO */, template /* TODO */) {
+    return __awaiter(this, void 0, void 0, function* () {
+        core.info('Adding codeowners');
+        core.info('Codeowners added');
+    });
+}
+function cloneTeamsAndCollaborators(api, repository /* TODO */, template /* TODO */) {
+    return __awaiter(this, void 0, void 0, function* () {
+        core.info('Adding teams and collaborators');
+        core.info('teams and collaborators added');
+    });
+}
+function cloneBranchProtections(api, repository /* TODO */, template /* TODO */) {
+    return __awaiter(this, void 0, void 0, function* () {
+        core.info('Adding branch protections');
+        core.info('branch protections added');
+    });
+}
+function cloneActionPermissions(api, repository /* TODO */, template /* TODO */) {
+    return __awaiter(this, void 0, void 0, function* () {
+        core.info('Setting GitHub Actions permissions');
+        core.info('GitHub Actions permissions set');
+    });
+}
+function cloneLabels(api, repository /* TODO */, template /* TODO */) {
+    return __awaiter(this, void 0, void 0, function* () {
+        core.info('Adding labels');
+        core.info('labels added');
+    });
+}
+function cloneAutolinkReferences(api, repository /* TODO */, template /* TODO */) {
+    return __awaiter(this, void 0, void 0, function* () {
+        core.info('Autolink references');
     });
 }
 
@@ -220,8 +308,9 @@ function handleIssues(api, eventData) {
                 return; // do not handle
         }
         core.debug(`Handling issues ${JSON.stringify(eventData, null, 2)}`);
+        core.info(`Parsing user request`);
         const repositoryInfo = yield (0, parse_1.parseIssueToRepositoryInfo)(api, eventData.repository.owner.login, eventData.issue.user.login, eventData.issue.body);
-        core.debug(`Parsed info ${repositoryInfo}, commenting`);
+        core.info(`Parsed repository info, will inform user now: ${JSON.stringify(repositoryInfo, null, 2)}`);
         yield api.rest.issues.createComment({
             owner: eventData.repository.owner.login,
             repo: eventData.repository.name,

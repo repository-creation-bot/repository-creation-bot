@@ -78,8 +78,7 @@ Following settings of will be taken over from the template to the new repository
 * Actions permissions
 * Labels
 * Autolink References
-* Issue templates if existing
-* Codeowners file if existing
+* Codeowners file
 
 ## Thoughts behind this ruleset
 
