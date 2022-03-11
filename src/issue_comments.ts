@@ -223,7 +223,7 @@ async function createRepositoryFromTemplate(
   await cloneLabels(api, repository.data, template)
   await cloneAutolinkReferences(api, repository.data, template)
 
-  return repository.data.url
+  return repository.data.html_url
 }
 
 async function commitCodeowners(

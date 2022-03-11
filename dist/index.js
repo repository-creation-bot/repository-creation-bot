@@ -215,7 +215,7 @@ function createRepositoryFromTemplate(api, organizationName, repositoryName, tem
         yield cloneActionPermissions(api, repository.data, template);
         yield cloneLabels(api, repository.data, template);
         yield cloneAutolinkReferences(api, repository.data, template);
-        return repository.data.url;
+        return repository.data.html_url;
     });
 }
 function commitCodeowners(api, repository /* TODO */, template /* TODO */) {
