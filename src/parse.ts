@@ -101,16 +101,20 @@ async function tryResolveTemplate(
   organizationName: string,
   repositoryName: string
 ): Promise<string | undefined> {
-  const response = await api.rest.repos.get({
-    owner: organizationName,
-    repo: repositoryName
-  })
+  try {
+    const response = await api.rest.repos.get({
+      owner: organizationName,
+      repo: repositoryName
+    })
 
-  if (response.status === 200) {
-    return response.data.name
+    if (response.status === 200) {
+      return response.data.name
+    }
+
+    return undefined
+  } catch (e) {
+    return undefined
   }
-
-  return undefined
 }
 async function isUserAdminInRepository(
   api: InstanceType<typeof GitHub>,
@@ -120,17 +124,23 @@ async function isUserAdminInRepository(
 ): Promise<boolean> {
   // https://docs.github.com/en/rest/reference/collaborators#get-repository-permissions-for-a-user
 
-  const permissionLevel = await api.rest.repos.getCollaboratorPermissionLevel({
-    owner: organizationName,
-    repo: templateName,
-    username: issueAuthorUsername
-  })
+  try {
+    const permissionLevel = await api.rest.repos.getCollaboratorPermissionLevel(
+      {
+        owner: organizationName,
+        repo: templateName,
+        username: issueAuthorUsername
+      }
+    )
 
-  if (permissionLevel.status !== 200) {
+    if (permissionLevel.status !== 200) {
+      return false
+    }
+
+    return permissionLevel.data.permission === 'admin'
+  } catch (e) {
     return false
   }
-
-  return permissionLevel.data.permission === 'admin'
 }
 function nextToken(tokens: marked.TokensList): marked.Token | undefined {
   do {

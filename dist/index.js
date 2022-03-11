@@ -309,28 +309,38 @@ function parseIssueToRepositoryInfo(api, organizationName, issueAuthorUsername, 
 exports.parseIssueToRepositoryInfo = parseIssueToRepositoryInfo;
 function tryResolveTemplate(api, organizationName, repositoryName) {
     return __awaiter(this, void 0, void 0, function* () {
-        const response = yield api.rest.repos.get({
-            owner: organizationName,
-            repo: repositoryName
-        });
-        if (response.status === 200) {
-            return response.data.name;
+        try {
+            const response = yield api.rest.repos.get({
+                owner: organizationName,
+                repo: repositoryName
+            });
+            if (response.status === 200) {
+                return response.data.name;
+            }
+            return undefined;
         }
-        return undefined;
+        catch (e) {
+            return undefined;
+        }
     });
 }
 function isUserAdminInRepository(api, organizationName, templateName, issueAuthorUsername) {
     return __awaiter(this, void 0, void 0, function* () {
         // https://docs.github.com/en/rest/reference/collaborators#get-repository-permissions-for-a-user
-        const permissionLevel = yield api.rest.repos.getCollaboratorPermissionLevel({
-            owner: organizationName,
-            repo: templateName,
-            username: issueAuthorUsername
-        });
-        if (permissionLevel.status !== 200) {
+        try {
+            const permissionLevel = yield api.rest.repos.getCollaboratorPermissionLevel({
+                owner: organizationName,
+                repo: templateName,
+                username: issueAuthorUsername
+            });
+            if (permissionLevel.status !== 200) {
+                return false;
+            }
+            return permissionLevel.data.permission === 'admin';
+        }
+        catch (e) {
             return false;
         }
-        return permissionLevel.data.permission === 'admin';
     });
 }
 function nextToken(tokens) {
