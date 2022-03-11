@@ -44,17 +44,16 @@ export async function parseIssueToRepositoryInfo(
 
   core.debug(`Parsed markdown to ${JSON.stringify(tokens, null, 2)}`)
 
-
   const repositoryInfo: RepositoryInfo = {
     canIssueAuthorRequestCreation: false
   }
 
   while (tokens.length > 0) {
-    let token = tokens.shift()
+    let token = nextToken(tokens)
     if (token?.type === 'heading') {
       switch (token.text.trim().toLowerCase()) {
         case 'repository name':
-          token = tokens.shift()
+          token = nextToken(tokens)
           if (token?.type !== 'paragraph') {
             throw new Error(
               'Could not parse repository name, no paragraph after repository name heading'
@@ -66,7 +65,7 @@ export async function parseIssueToRepositoryInfo(
           )
           break
         case 'template repository':
-          token = tokens.shift()
+          token = nextToken(tokens)
           if (token?.type !== 'paragraph') {
             throw new Error(
               'Could not parse template repository name, no paragraph after template repository heading'
@@ -132,4 +131,18 @@ async function isUserAdminInRepository(
   }
 
   return permissionLevel.data.permission === 'admin'
+}
+function nextToken(tokens: marked.TokensList): marked.Token | undefined {
+  do {
+    const token = tokens.shift()
+    if (!token) {
+      return token
+    }
+
+    if (token.type === 'html' && token.text.trimStart().indexOf('<!--')) {
+      continue
+    }
+
+    return token
+  } while (true)
 }

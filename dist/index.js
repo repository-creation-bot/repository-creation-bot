@@ -277,11 +277,11 @@ function parseIssueToRepositoryInfo(api, organizationName, issueAuthorUsername, 
             canIssueAuthorRequestCreation: false
         };
         while (tokens.length > 0) {
-            let token = tokens.shift();
+            let token = nextToken(tokens);
             if ((token === null || token === void 0 ? void 0 : token.type) === 'heading') {
                 switch (token.text.trim().toLowerCase()) {
                     case 'repository name':
-                        token = tokens.shift();
+                        token = nextToken(tokens);
                         if ((token === null || token === void 0 ? void 0 : token.type) !== 'paragraph') {
                             throw new Error('Could not parse repository name, no paragraph after repository name heading');
                         }
@@ -289,7 +289,7 @@ function parseIssueToRepositoryInfo(api, organizationName, issueAuthorUsername, 
                         repositoryInfo.sanitizedName = sanitizeRepositoryName(repositoryInfo.parsedName);
                         break;
                     case 'template repository':
-                        token = tokens.shift();
+                        token = nextToken(tokens);
                         if ((token === null || token === void 0 ? void 0 : token.type) !== 'paragraph') {
                             throw new Error('Could not parse template repository name, no paragraph after template repository heading');
                         }
@@ -332,6 +332,18 @@ function isUserAdminInRepository(api, organizationName, templateName, issueAutho
         }
         return permissionLevel.data.permission === 'admin';
     });
+}
+function nextToken(tokens) {
+    do {
+        const token = tokens.shift();
+        if (!token) {
+            return token;
+        }
+        if (token.type === 'html' && token.text.trimStart().indexOf('<!--')) {
+            continue;
+        }
+        return token;
+    } while (true);
 }
 
 
