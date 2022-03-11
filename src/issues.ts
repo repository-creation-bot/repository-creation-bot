@@ -61,7 +61,7 @@ Issue Author can approve: '${repositoryInfo.canIssueAuthorApproveCreation}'
     You can either correct the issue by editing your original request or comment \`/repo-bot ping-admins\` on this issue to ping the organization administators for assistance.`
   }
 
-  if (!repositoryInfo.alreadyExists) {
+  if (repositoryInfo.alreadyExists) {
     return `${base} ⚠️ Unfortunately the repository name ${repositoryInfo.sanitizedName} is already taken, please choose a different one.
     You can either correct the issue by editing your original request or comment \`/repo-bot ping-admins\` on this issue to ping the organization administators for assistance.`
   }
