@@ -43,7 +43,42 @@ exports.handleIssueComment = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 function handleIssueComment(api, eventData, orgAdmins) {
     return __awaiter(this, void 0, void 0, function* () {
+        switch (eventData.action) {
+            case 'created':
+                break; // proceed
+            default:
+                return; // do not handle
+        }
         core.debug(`Handling issue comment ${JSON.stringify(eventData, null, 2)}`);
+        const text = eventData.comment.body.trim();
+        if (!text.startsWith('/repo-bot')) {
+            return; // do not handle comment
+        }
+        const command = text.substring('/repo-bot'.length + 1).toLowerCase();
+        switch (command) {
+            case 'ping-admins':
+                yield api.rest.issues.createComment({
+                    owner: eventData.repository.owner.login,
+                    repo: eventData.repository.name,
+                    issue_number: eventData.issue.number,
+                    body: `[repo-bot] Hey @${orgAdmins} 👋! It seems ${eventData.comment.user.login} is either facing troubles or needs your approval for this request.`
+                });
+                break;
+            case 'approve':
+                // TODO
+                break;
+            default:
+                yield api.rest.issues.createComment({
+                    owner: eventData.repository.owner.login,
+                    repo: eventData.repository.name,
+                    issue_number: eventData.issue.number,
+                    body: `[repo-bot] I did not understand the command \`${command}\` it is not a known command, known are:
+* \`ping-admins\` - will create a comment in this issue which will ping the organization admins
+* \`approve\` - approve the request and initiate the repository creation (will fail if user commenting is not allowed to approve) 
+        `
+                });
+                break;
+        }
     });
 }
 exports.handleIssueComment = handleIssueComment;
@@ -94,6 +129,13 @@ const core = __importStar(__nccwpck_require__(2186));
 const parse_1 = __nccwpck_require__(5223);
 function handleIssues(api, eventData) {
     return __awaiter(this, void 0, void 0, function* () {
+        switch (eventData.action) {
+            case 'opened':
+            case 'edited':
+                break; // proceed
+            default:
+                return; // do not handle
+        }
         core.debug(`Handling issues ${JSON.stringify(eventData, null, 2)}`);
         const repositoryInfo = yield (0, parse_1.parseIssueToRepositoryInfo)(api, eventData.repository.owner.login, eventData.issue.user.login, eventData.issue.body);
         core.debug(`Parsed info ${repositoryInfo}, commenting`);
@@ -363,7 +405,7 @@ function nextToken(tokens) {
         if (!token) {
             return token;
         }
-        if (token.type === 'html' && token.text.trimStart().indexOf('<!--') === 0) {
+        if (token.type === 'html' && token.text.trimStart().startsWith('<!--')) {
             continue;
         }
         return token;
