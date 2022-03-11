@@ -175,12 +175,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
-const github_1 = __importDefault(__nccwpck_require__(5438));
+const github = __importStar(__nccwpck_require__(5438));
 const issues_1 = __nccwpck_require__(6962);
 const issue_comments_1 = __nccwpck_require__(2881);
 function run() {
@@ -190,13 +187,13 @@ function run() {
             const orgAdmins = core.getInput('org_admins');
             const apiUrl = core.getInput('api_url');
             const options = apiUrl ? { baseUrl: apiUrl } : {};
-            const octokit = github_1.default.getOctokit(token, options);
-            switch (github_1.default.context.eventName) {
+            const octokit = github.getOctokit(token, options);
+            switch (github.context.eventName) {
                 case 'issues':
-                    yield (0, issues_1.handleIssues)(octokit, github_1.default.context.payload);
+                    yield (0, issues_1.handleIssues)(octokit, github.context.payload);
                     break;
                 case 'issue_comment':
-                    yield (0, issue_comments_1.handleIssueComment)(octokit, github_1.default.context.payload, orgAdmins);
+                    yield (0, issue_comments_1.handleIssueComment)(octokit, github.context.payload, orgAdmins);
                     break;
             }
         }
