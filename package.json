@@ -1,0 +1,43 @@
+{
+  "name": "repository-creation-bot",
+  "version": "1.0.0",
+  "description": "A bot for creating repositories in a GitHub Organization through Issues and GitHub Actions.",
+  "main": "lib/main.js",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "format": "prettier --write '**/*.ts'",
+    "format-check": "prettier --check '**/*.ts'",
+    "lint": "eslint src/**/*.ts",
+    "package": "ncc build --source-map --license licenses.txt",
+    "test": "jest",
+    "all": "npm run build && npm run format && npm run lint && npm run package && npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/repository-creation-bot/repository-creation-bot.git"
+  },
+  "author": "Daniel Kuschny",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/repository-creation-bot/repository-creation-bot/issues"
+  },
+  "homepage": "https://github.com/repository-creation-bot/repository-creation-bot#readme",
+  "devDependencies": {
+    "@types/node": "^17.0.21",
+    "@typescript-eslint/parser": "^5.14.0",
+    "@vercel/ncc": "^0.33.3",
+    "eslint": "^8.10.0",
+    "eslint-plugin-github": "^4.3.5",
+    "eslint-plugin-jest": "^26.1.1",
+    "jest": "^27.5.1",
+    "js-yaml": "^4.1.0",
+    "prettier": "^2.5.1",
+    "ts-jest": "^27.1.3",
+    "typescript": "^4.6.2"
+  },
+  "dependencies": {
+    "@actions/core": "^1.6.0",
+    "@actions/github": "^5.0.0"
+  }
+}

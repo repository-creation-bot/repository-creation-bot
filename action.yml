@@ -1,0 +1,11 @@
+name: 'Repository Creation Bot'
+description: 'A bot for creating repositories in a GitHub Organization through Issues and GitHub Actions.'
+author: 'Daniel Kuschny'
+inputs:
+  milliseconds: # change this
+    required: true
+    description: 'input description here'
+    default: 'default value if applicable'
+runs:
+  using: 'node16'
+  main: 'dist/index.js'
