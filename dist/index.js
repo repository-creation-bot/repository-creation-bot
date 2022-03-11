@@ -101,7 +101,9 @@ function approve(api, eventData) {
             });
             return;
         }
-        if (!repositoryInfo.sanitizedName || !repositoryInfo.resolvedTemplateName) {
+        if (repositoryInfo.alreadyExists ||
+            !repositoryInfo.sanitizedName ||
+            !repositoryInfo.resolvedTemplateName) {
             yield api.rest.issues.createComment({
                 owner: eventData.repository.owner.login,
                 repo: eventData.repository.name,
@@ -231,7 +233,8 @@ function handleIssues(api, eventData) {
 }
 exports.handleIssues = handleIssues;
 function buildRepositoryInfoComment(repositoryInfo) {
-    const base = `\`\`\`
+    const base = `
+\`\`\`
 Parsed Repository Name: '${repositoryInfo.parsedName}'
 Sanitized Repository Name: '${repositoryInfo.sanitizedName}'
 Parsed Template Repository: '${repositoryInfo.templateName}'
@@ -251,6 +254,10 @@ Issue Author can approve: '${repositoryInfo.canIssueAuthorApproveCreation}'
     }
     if (!repositoryInfo.resolvedTemplateName) {
         return `${base} ⚠️ I could not find any repository with the name \`${repositoryInfo.templateName}\`. Did you mention an existing repository in this organization?
+    You can either correct the issue by editing your original request or comment \`/repo-bot ping-admins\` on this issue to ping the organization administators for assistance.`;
+    }
+    if (!repositoryInfo.alreadyExists) {
+        return `${base} ⚠️ Unfortunately the repository name ${repositoryInfo.sanitizedName} is already taken, please choose a different one.
     You can either correct the issue by editing your original request or comment \`/repo-bot ping-admins\` on this issue to ping the organization administators for assistance.`;
     }
     if (!repositoryInfo.canIssueAuthorApproveCreation) {
@@ -405,7 +412,8 @@ function parseIssueToRepositoryInfo(api, organizationName, issueAuthorUsernameOr
         core.debug(`Parsed markdown to ${JSON.stringify(tokens, null, 2)}`);
         const repositoryInfo = {
             canIssueAuthorApproveCreation: false,
-            isIssueAuthorAdminInTemplate: false
+            isIssueAuthorAdminInTemplate: false,
+            alreadyExists: false
         };
         while (tokens.length > 0) {
             let token = nextToken(tokens);
@@ -434,6 +442,7 @@ function parseIssueToRepositoryInfo(api, organizationName, issueAuthorUsernameOr
                 }
             }
         }
+        // TODO: check for duplicates and fill alreadyExists
         if (repositoryInfo.sanitizedName && repositoryInfo.resolvedTemplateName) {
             repositoryInfo.commonPrefix = detectCommonPrefix(repositoryInfo.sanitizedName, repositoryInfo.resolvedTemplateName);
             repositoryInfo.canIssueAuthorApproveCreation =

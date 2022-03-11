@@ -80,7 +80,11 @@ async function approve(
     return
   }
 
-  if (!repositoryInfo.sanitizedName || !repositoryInfo.resolvedTemplateName) {
+  if (
+    repositoryInfo.alreadyExists ||
+    !repositoryInfo.sanitizedName ||
+    !repositoryInfo.resolvedTemplateName
+  ) {
     await api.rest.issues.createComment({
       owner: eventData.repository.owner.login,
       repo: eventData.repository.name,
@@ -148,7 +152,7 @@ async function createRepositoryFromTemplate(
   repositoryName: string,
   templateName: string
 ): Promise<string> {
-  if(Math.random() >= 0.5) {
+  if (Math.random() >= 0.5) {
     throw new Error(
       'Actual creation is not yet implemented. Still some work to do.'
     )

@@ -11,6 +11,7 @@ export interface RepositoryInfo {
   isIssueAuthorAdminInTemplate: boolean
   commonPrefix?: string
   canIssueAuthorApproveCreation: boolean
+  alreadyExists: boolean
 }
 
 function toKebabCase(str: string): string {
@@ -52,7 +53,8 @@ export async function parseIssueToRepositoryInfo(
 
   const repositoryInfo: RepositoryInfo = {
     canIssueAuthorApproveCreation: false,
-    isIssueAuthorAdminInTemplate: false
+    isIssueAuthorAdminInTemplate: false,
+    alreadyExists: false
   }
 
   while (tokens.length > 0) {
@@ -99,6 +101,8 @@ export async function parseIssueToRepositoryInfo(
       }
     }
   }
+
+  // TODO: check for duplicates and fill alreadyExists
 
   if (repositoryInfo.sanitizedName && repositoryInfo.resolvedTemplateName) {
     repositoryInfo.commonPrefix = detectCommonPrefix(

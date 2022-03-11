@@ -28,16 +28,14 @@ export async function handleIssues(
     owner: eventData.repository.owner.login,
     repo: eventData.repository.name,
     issue_number: eventData.issue.number,
-    body:
-      '[repo-bot] This is the information I understood: ' +
-      buildRepositoryInfoComment(repositoryInfo)
+    body: '[repo-bot] This is the information I understood: ' +  
+    buildRepositoryInfoComment(repositoryInfo)
   })
 }
 
-export function buildRepositoryInfoComment(
-  repositoryInfo: RepositoryInfo
-): string {
-  const base = `\`\`\`
+export function buildRepositoryInfoComment(repositoryInfo: RepositoryInfo): string {
+  const base = `
+\`\`\`
 Parsed Repository Name: '${repositoryInfo.parsedName}'
 Sanitized Repository Name: '${repositoryInfo.sanitizedName}'
 Parsed Template Repository: '${repositoryInfo.templateName}'
@@ -60,6 +58,11 @@ Issue Author can approve: '${repositoryInfo.canIssueAuthorApproveCreation}'
 
   if (!repositoryInfo.resolvedTemplateName) {
     return `${base} ⚠️ I could not find any repository with the name \`${repositoryInfo.templateName}\`. Did you mention an existing repository in this organization?
+    You can either correct the issue by editing your original request or comment \`/repo-bot ping-admins\` on this issue to ping the organization administators for assistance.`
+  }
+
+  if (!repositoryInfo.alreadyExists) {
+    return `${base} ⚠️ Unfortunately the repository name ${repositoryInfo.sanitizedName} is already taken, please choose a different one.
     You can either correct the issue by editing your original request or comment \`/repo-bot ping-admins\` on this issue to ping the organization administators for assistance.`
   }
 
