@@ -631,28 +631,16 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.parseIssueToRepositoryInfo = void 0;
+exports.parseIssueToRepositoryInfo = exports.toKebabCase = void 0;
 const marked_1 = __nccwpck_require__(5741);
 const core = __importStar(__nccwpck_require__(2186));
 function toKebabCase(str) {
     return str
-        .split('')
-        .map((letter, idx) => {
-        if (letter === ' ' ||
-            letter === '\t' ||
-            letter === '\r' ||
-            letter === '\n') {
-            return '';
-        }
-        if (letter === '-') {
-            return '-';
-        }
-        return letter.toUpperCase() === letter
-            ? `${idx !== 0 ? '-' : ''}${letter.toLowerCase()}`
-            : letter;
-    })
-        .join('');
+        .trim()
+        .replace(/[ -]+/g, () => '-')
+        .replace(/[A-Z]+(?![a-z])|[A-Z]/g, ($, ofs) => (ofs ? '-' : '') + $.toLowerCase());
 }
+exports.toKebabCase = toKebabCase;
 function sanitizeRepositoryName(templateName) {
     templateName = toKebabCase(templateName);
     return templateName;

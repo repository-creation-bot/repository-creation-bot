@@ -14,26 +14,14 @@ export interface RepositoryInfo {
   alreadyExists: boolean
 }
 
-function toKebabCase(str: string): string {
+export function toKebabCase(str: string): string {
   return str
-    .split('')
-    .map((letter, idx) => {
-      if (
-        letter === ' ' ||
-        letter === '\t' ||
-        letter === '\r' ||
-        letter === '\n'
-      ) {
-        return ''
-      }
-      if (letter === '-') {
-        return '-'
-      }
-      return letter.toUpperCase() === letter
-        ? `${idx !== 0 ? '-' : ''}${letter.toLowerCase()}`
-        : letter
-    })
-    .join('')
+    .trim()
+    .replace(/[ -]+/g, () => '-')
+    .replace(
+      /[A-Z]+(?![a-z])|[A-Z]/g,
+      ($, ofs) => (ofs ? '-' : '') + $.toLowerCase()
+    )
 }
 
 function sanitizeRepositoryName(templateName: string): string {
