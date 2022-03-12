@@ -73,9 +73,8 @@ jobs:
 Following settings of will be taken over from the template to the new repository: 
 
 * General repository settings like enabled features, pull request settings, etc. 
-* Assigned collaborators and teams with their corresponding privileges.
-* Branch protections
-* Actions permissions
+* Assigned teams with their corresponding privileges (individual collaborators are not taken over)
+* Branch protections (high level settings only)
 * Labels
 * Autolink References
 * Codeowners file

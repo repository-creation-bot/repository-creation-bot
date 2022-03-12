@@ -1,5 +1,5 @@
 import * as core from '@actions/core'
-import {context, GitHub} from '@actions/github/lib/utils'
+import {GitHub} from '@actions/github/lib/utils'
 import {parseIssueToRepositoryInfo, RepositoryInfo} from './parse'
 import {IssuesEvent} from '@octokit/webhooks-definitions/schema'
 

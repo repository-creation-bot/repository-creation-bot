@@ -127,7 +127,7 @@ function approve(api, eventData) {
             owner: eventData.repository.owner.login,
             repo: eventData.repository.name,
             issue_number: eventData.issue.number,
-            body: `[repo-bot] Great, some work to do 💪! I will start now creation of your repository, this might take a while until it is completed. 
+            body: `[repo-bot] Great, got some work to do 💪! I will start now creation of your repository, this might take a while until it is completed. 
     I will close this issue once the repository was created. `
         });
         core.info(`User informed, starting creation`);
@@ -209,48 +209,210 @@ function createRepositoryFromTemplate(api, organizationName, repositoryName, tem
             license_template: undefined
         });
         core.info(`Repository created.`);
-        yield commitCodeowners(api, repository.data, template);
-        yield cloneTeamsAndCollaborators(api, repository.data, template);
-        yield cloneBranchProtections(api, repository.data, template);
-        yield cloneActionPermissions(api, repository.data, template);
-        yield cloneLabels(api, repository.data, template);
-        yield cloneAutolinkReferences(api, repository.data, template);
+        yield commitCodeowners(api, repository.data, template.data);
+        yield cloneTeams(api, repository.data, template.data);
+        yield cloneBranchProtections(api, repository.data, template.data);
+        yield cloneLabels(api, repository.data, template.data);
+        yield cloneAutolinkReferences(api, repository.data, template.data);
         return repository.data.html_url;
     });
 }
-function commitCodeowners(api, repository /* TODO */, template /* TODO */) {
+function commitCodeowners(api, repository, template) {
     return __awaiter(this, void 0, void 0, function* () {
-        core.info('Adding codeowners');
-        core.info('Codeowners added');
+        let codeOwnersFile = undefined;
+        // https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners#codeowners-file-location
+        const codeOwnersLocations = [
+            'CODEOWNERS',
+            '.github/CODEOWNERS',
+            'docs/CODEOWNERS'
+        ];
+        for (const location of codeOwnersLocations) {
+            try {
+                const result = yield api.rest.repos.getContent({
+                    owner: template.owner.login,
+                    repo: template.name,
+                    path: location
+                });
+                if (result.status === 200 &&
+                    'type' in result.data &&
+                    result.data.type === 'file') {
+                    codeOwnersFile = result;
+                    break;
+                }
+            }
+            catch (e) {
+                // skip
+            }
+        }
+        if (!codeOwnersFile) {
+            core.info('No CODEOWNERS file founds skipping');
+            return;
+        }
+        if ('type' in codeOwnersFile.data && codeOwnersFile.data.type === 'file') {
+            core.info('Adding codeowners');
+            yield api.rest.repos.createOrUpdateFileContents({
+                owner: repository.owner.login,
+                repo: repository.name,
+                path: codeOwnersFile.data.path,
+                message: '[repo-bot] Adding CODEOWNERS',
+                content: codeOwnersFile.data.content
+            });
+            core.info('Codeowners added');
+        }
     });
 }
-function cloneTeamsAndCollaborators(api, repository /* TODO */, template /* TODO */) {
+function cloneTeams(api, repository, template) {
     return __awaiter(this, void 0, void 0, function* () {
-        core.info('Adding teams and collaborators');
-        core.info('teams and collaborators added');
+        const teams = yield api.paginate(api.rest.repos.listTeams, {
+            owner: template.owner.login,
+            repo: template.name,
+            per_page: 100
+        });
+        core.info('Adding teams');
+        for (const team of teams) {
+            yield api.rest.teams.addOrUpdateRepoPermissionsInOrg({
+                org: template.owner.login,
+                team_slug: team.slug,
+                owner: repository.owner.login,
+                repo: repository.name,
+                permission: team.permission
+            });
+        }
+        core.info('teams added');
     });
 }
-function cloneBranchProtections(api, repository /* TODO */, template /* TODO */) {
+function cloneBranchProtections(api, repository, template) {
     return __awaiter(this, void 0, void 0, function* () {
         core.info('Adding branch protections');
+        const branchProtections = yield api.graphql(`
+        query getBranchProtections($owner: String!, $name: String!) {
+            repository(owner: $owner, name: $name) {
+                id,
+                branchProtectionRules(first: 50) {
+                    nodes {
+                        id,
+                        allowsDeletions,
+                        allowsForcePushes,
+                        dismissesStaleReviews,
+                        isAdminEnforced,
+                        pattern,
+                        requiredApprovingReviewCount,
+                        requiresApprovingReviews,
+                        requiresCodeOwnerReviews,
+                        requiresCommitSignatures,
+                        requiresConversationResolution,
+                        requiresLinearHistory,
+                        requiresStatusChecks,
+                        requiresStrictStatusChecks,
+                        restrictsPushes,
+                        restrictsReviewDismissals
+                    }
+                }
+            }
+        }    
+    `, {
+            owner: template.owner.login,
+            name: template.name
+        });
+        const graphQLTargetRepository = yield api.graphql(`
+        query get($owner: String!, $name: String!) {
+            repository(owner: $owner, name: $name) {
+                id
+            }
+        }    
+    `, {
+            owner: repository.owner.login,
+            name: repository.name
+        });
+        for (const protection of branchProtections.repository.branchProtectionRules
+            .nodes) {
+            const input = {
+                repositoryId: graphQLTargetRepository.repository.id,
+                allowsDeletions: protection.allowsDeletions,
+                allowsForcePushes: protection.allowsForcePushes,
+                dismissesStaleReviews: protection.dismissesStaleReviews,
+                isAdminEnforced: protection.isAdminEnforced,
+                pattern: protection.pattern,
+                requiredApprovingReviewCount: protection.requiredApprovingReviewCount,
+                requiresApprovingReviews: protection.requiresApprovingReviews,
+                requiresCodeOwnerReviews: protection.requiresCodeOwnerReviews,
+                requiresCommitSignatures: protection.requiresCommitSignatures,
+                requiresConversationResolution: protection.requiresConversationResolution,
+                requiresLinearHistory: protection.requiresLinearHistory,
+                requiresStatusChecks: protection.requiresStrictStatusChecks,
+                requiresStrictStatusChecks: protection.requiresStrictStatusChecks,
+                restrictsPushes: protection.restrictsPushes,
+                restrictsReviewDismissals: protection.restrictsReviewDismissals
+            };
+            yield api.graphql(`
+            mutation($input:CreateBranchProtectionRuleInput!) {
+                createBranchProtectionRule(input:$input) {
+                    branchProtectionRule {
+                        id
+                    }
+                }
+            }
+        `, {
+                input: input
+            });
+        }
         core.info('branch protections added');
     });
 }
-function cloneActionPermissions(api, repository /* TODO */, template /* TODO */) {
+function cloneLabels(api, repository, template) {
+    var _a;
     return __awaiter(this, void 0, void 0, function* () {
-        core.info('Setting GitHub Actions permissions');
-        core.info('GitHub Actions permissions set');
+        yield deleteOldLabels(api, repository);
+        core.info('Adding new labels');
+        const templateLabels = yield api.paginate(api.rest.issues.listLabelsForRepo, {
+            owner: template.owner.login,
+            repo: template.name
+        });
+        for (const label of templateLabels) {
+            yield api.rest.issues.createLabel({
+                owner: repository.owner.login,
+                repo: repository.name,
+                name: label.name,
+                description: (_a = label.description) !== null && _a !== void 0 ? _a : '',
+                color: label.color
+            });
+        }
+        core.info('Labels added');
     });
 }
-function cloneLabels(api, repository /* TODO */, template /* TODO */) {
+function deleteOldLabels(api, repository) {
     return __awaiter(this, void 0, void 0, function* () {
-        core.info('Adding labels');
-        core.info('labels added');
+        const repoLabels = yield api.paginate(api.rest.issues.listLabelsForRepo, {
+            owner: repository.owner.login,
+            repo: repository.name
+        });
+        core.info('Deleting old labels');
+        for (const existingLabel of repoLabels) {
+            yield api.rest.issues.deleteLabel({
+                owner: repository.owner.login,
+                repo: repository.name,
+                name: existingLabel.name
+            });
+        }
+        core.info('Deleted');
     });
 }
-function cloneAutolinkReferences(api, repository /* TODO */, template /* TODO */) {
+function cloneAutolinkReferences(api, repository, template) {
     return __awaiter(this, void 0, void 0, function* () {
-        core.info('Autolink references');
+        const templateReferences = yield api.paginate(api.rest.repos.listAutolinks, {
+            owner: template.owner.login,
+            repo: template.name
+        });
+        core.info('Adding new Autolink References');
+        for (const reference of templateReferences) {
+            yield api.rest.repos.createAutolink({
+                owner: repository.owner.login,
+                repo: repository.name,
+                key_prefix: reference.key_prefix,
+                url_template: reference.url_template
+            });
+        }
+        core.info('Autolink References added');
     });
 }
 

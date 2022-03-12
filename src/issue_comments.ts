@@ -6,6 +6,15 @@ import {
 } from '@octokit/webhooks-definitions/schema'
 import {buildRepositoryInfoComment} from './issues'
 import {parseIssueToRepositoryInfo} from './parse'
+import {RestEndpointMethodTypes} from '@octokit/plugin-rest-endpoint-methods/dist-types/generated/parameters-and-response-types'
+import {OctokitResponse} from '@octokit/types'
+
+type RepoGetResponse =
+  RestEndpointMethodTypes['repos']['get']['response']['data']
+type RepoCreateInOrgResponse =
+  RestEndpointMethodTypes['repos']['createInOrg']['response']['data']
+type RepoGetContentResponse =
+  RestEndpointMethodTypes['repos']['getContent']['response']['data']
 
 export async function handleIssueComment(
   api: InstanceType<typeof GitHub>,
@@ -122,7 +131,7 @@ async function approve(
     owner: eventData.repository.owner.login,
     repo: eventData.repository.name,
     issue_number: eventData.issue.number,
-    body: `[repo-bot] Great, some work to do 💪! I will start now creation of your repository, this might take a while until it is completed. 
+    body: `[repo-bot] Great, got some work to do 💪! I will start now creation of your repository, this might take a while until it is completed. 
     I will close this issue once the repository was created. `
   })
   core.info(`User informed, starting creation`)
@@ -216,65 +225,295 @@ async function createRepositoryFromTemplate(
   })
   core.info(`Repository created.`)
 
-  await commitCodeowners(api, repository.data, template)
-  await cloneTeamsAndCollaborators(api, repository.data, template)
-  await cloneBranchProtections(api, repository.data, template)
-  await cloneActionPermissions(api, repository.data, template)
-  await cloneLabels(api, repository.data, template)
-  await cloneAutolinkReferences(api, repository.data, template)
+  await commitCodeowners(api, repository.data, template.data)
+  await cloneTeams(api, repository.data, template.data)
+  await cloneBranchProtections(api, repository.data, template.data)
+  await cloneLabels(api, repository.data, template.data)
+  await cloneAutolinkReferences(api, repository.data, template.data)
 
   return repository.data.html_url
 }
 
 async function commitCodeowners(
   api: InstanceType<typeof GitHub>,
-  repository: any /* TODO */,
-  template: any /* TODO */
+  repository: RepoCreateInOrgResponse,
+  template: RepoGetResponse
 ): Promise<void> {
-  core.info('Adding codeowners')
-  core.info('Codeowners added')
+  let codeOwnersFile: OctokitResponse<RepoGetContentResponse> | undefined =
+    undefined
+  // https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners#codeowners-file-location
+  const codeOwnersLocations = [
+    'CODEOWNERS',
+    '.github/CODEOWNERS',
+    'docs/CODEOWNERS'
+  ]
+  for (const location of codeOwnersLocations) {
+    try {
+      const result = await api.rest.repos.getContent({
+        owner: template.owner.login,
+        repo: template.name,
+        path: location
+      })
+      if (
+        result.status === 200 &&
+        'type' in result.data &&
+        result.data.type === 'file'
+      ) {
+        codeOwnersFile = result
+        break
+      }
+    } catch (e) {
+      // skip
+    }
+  }
+
+  if (!codeOwnersFile) {
+    core.info('No CODEOWNERS file founds skipping')
+    return
+  }
+
+  if ('type' in codeOwnersFile.data && codeOwnersFile.data.type === 'file') {
+    core.info('Adding codeowners')
+
+    await api.rest.repos.createOrUpdateFileContents({
+      owner: repository.owner.login,
+      repo: repository.name,
+      path: codeOwnersFile.data.path,
+      message: '[repo-bot] Adding CODEOWNERS',
+      content: (codeOwnersFile.data as any).content
+    })
+
+    core.info('Codeowners added')
+  }
 }
 
-async function cloneTeamsAndCollaborators(
+async function cloneTeams(
   api: InstanceType<typeof GitHub>,
-  repository: any /* TODO */,
-  template: any /* TODO */
+  repository: RepoCreateInOrgResponse,
+  template: RepoGetResponse
 ): Promise<void> {
-  core.info('Adding teams and collaborators')
-  core.info('teams and collaborators added')
+  const teams = await api.paginate(api.rest.repos.listTeams, {
+    owner: template.owner.login,
+    repo: template.name,
+    per_page: 100
+  })
+
+  core.info('Adding teams')
+  for (const team of teams) {
+    await api.rest.teams.addOrUpdateRepoPermissionsInOrg({
+      org: template.owner.login,
+      team_slug: team.slug,
+      owner: repository.owner.login,
+      repo: repository.name,
+      permission: team.permission as any
+    })
+  }
+  core.info('teams added')
+}
+
+interface BranchProtectionNode {
+  id: string
+  allowsDeletions: boolean
+  allowsForcePushes: boolean
+  dismissesStaleReviews: boolean
+  isAdminEnforced: boolean
+  pattern: string
+  requiredApprovingReviewCount: number
+  requiresApprovingReviews: boolean
+  requiresCodeOwnerReviews: boolean
+  requiresCommitSignatures: boolean
+  requiresConversationResolution: boolean
+  requiresLinearHistory: boolean
+  requiresStatusChecks: boolean
+  requiresStrictStatusChecks: boolean
+  restrictsPushes: boolean
+  restrictsReviewDismissals: boolean
+}
+
+interface GetBranchProtectionsReponse {
+  repository: {
+    id: string
+    branchProtectionRules: {
+      nodes: BranchProtectionNode[]
+    }
+  }
+}
+
+interface CreateBranchProtectionRuleInput {
+  repositoryId: string
+  allowsDeletions: boolean
+  allowsForcePushes: boolean
+  dismissesStaleReviews: boolean
+  isAdminEnforced: boolean
+  pattern: string
+  requiredApprovingReviewCount: number
+  requiresApprovingReviews: boolean
+  requiresCodeOwnerReviews: boolean
+  requiresCommitSignatures: boolean
+  requiresConversationResolution: boolean
+  requiresLinearHistory: boolean
+  requiresStatusChecks: boolean
+  requiresStrictStatusChecks: boolean
+  restrictsPushes: boolean
+  restrictsReviewDismissals: boolean
 }
 
 async function cloneBranchProtections(
   api: InstanceType<typeof GitHub>,
-  repository: any /* TODO */,
-  template: any /* TODO */
+  repository: RepoCreateInOrgResponse,
+  template: RepoGetResponse
 ): Promise<void> {
   core.info('Adding branch protections')
-  core.info('branch protections added')
-}
 
-async function cloneActionPermissions(
-  api: InstanceType<typeof GitHub>,
-  repository: any /* TODO */,
-  template: any /* TODO */
-): Promise<void> {
-  core.info('Setting GitHub Actions permissions')
-  core.info('GitHub Actions permissions set')
+  const branchProtections = await api.graphql<GetBranchProtectionsReponse>(
+    `
+        query getBranchProtections($owner: String!, $name: String!) {
+            repository(owner: $owner, name: $name) {
+                id,
+                branchProtectionRules(first: 50) {
+                    nodes {
+                        id,
+                        allowsDeletions,
+                        allowsForcePushes,
+                        dismissesStaleReviews,
+                        isAdminEnforced,
+                        pattern,
+                        requiredApprovingReviewCount,
+                        requiresApprovingReviews,
+                        requiresCodeOwnerReviews,
+                        requiresCommitSignatures,
+                        requiresConversationResolution,
+                        requiresLinearHistory,
+                        requiresStatusChecks,
+                        requiresStrictStatusChecks,
+                        restrictsPushes,
+                        restrictsReviewDismissals
+                    }
+                }
+            }
+        }    
+    `,
+    {
+      owner: template.owner.login,
+      name: template.name
+    }
+  )
+  const graphQLTargetRepository =
+    await api.graphql<GetBranchProtectionsReponse>(
+      `
+        query get($owner: String!, $name: String!) {
+            repository(owner: $owner, name: $name) {
+                id
+            }
+        }    
+    `,
+      {
+        owner: repository.owner.login,
+        name: repository.name
+      }
+    )
+
+  for (const protection of branchProtections.repository.branchProtectionRules
+    .nodes) {
+    const input: CreateBranchProtectionRuleInput = {
+      repositoryId: graphQLTargetRepository.repository.id,
+      allowsDeletions: protection.allowsDeletions,
+      allowsForcePushes: protection.allowsForcePushes,
+      dismissesStaleReviews: protection.dismissesStaleReviews,
+      isAdminEnforced: protection.isAdminEnforced,
+      pattern: protection.pattern,
+      requiredApprovingReviewCount: protection.requiredApprovingReviewCount,
+      requiresApprovingReviews: protection.requiresApprovingReviews,
+      requiresCodeOwnerReviews: protection.requiresCodeOwnerReviews,
+      requiresCommitSignatures: protection.requiresCommitSignatures,
+      requiresConversationResolution: protection.requiresConversationResolution,
+      requiresLinearHistory: protection.requiresLinearHistory,
+      requiresStatusChecks: protection.requiresStrictStatusChecks,
+      requiresStrictStatusChecks: protection.requiresStrictStatusChecks,
+      restrictsPushes: protection.restrictsPushes,
+      restrictsReviewDismissals: protection.restrictsReviewDismissals
+    }
+
+    await api.graphql(
+      `
+            mutation($input:CreateBranchProtectionRuleInput!) {
+                createBranchProtectionRule(input:$input) {
+                    branchProtectionRule {
+                        id
+                    }
+                }
+            }
+        `,
+      {
+        input: input
+      }
+    )
+  }
+
+  core.info('branch protections added')
 }
 
 async function cloneLabels(
   api: InstanceType<typeof GitHub>,
-  repository: any /* TODO */,
-  template: any /* TODO */
+  repository: RepoCreateInOrgResponse,
+  template: RepoGetResponse
 ): Promise<void> {
-  core.info('Adding labels')
-  core.info('labels added')
+  await deleteOldLabels(api, repository)
+
+  core.info('Adding new labels')
+  const templateLabels = await api.paginate(api.rest.issues.listLabelsForRepo, {
+    owner: template.owner.login,
+    repo: template.name
+  })
+  for (const label of templateLabels) {
+    await api.rest.issues.createLabel({
+      owner: repository.owner.login,
+      repo: repository.name,
+      name: label.name,
+      description: label.description ?? '',
+      color: label.color
+    })
+  }
+  core.info('Labels added')
+}
+
+async function deleteOldLabels(
+  api: InstanceType<typeof GitHub>,
+  repository: RepoCreateInOrgResponse
+) {
+  const repoLabels = await api.paginate(api.rest.issues.listLabelsForRepo, {
+    owner: repository.owner.login,
+    repo: repository.name
+  })
+
+  core.info('Deleting old labels')
+  for (const existingLabel of repoLabels) {
+    await api.rest.issues.deleteLabel({
+      owner: repository.owner.login,
+      repo: repository.name,
+      name: existingLabel.name
+    })
+  }
+  core.info('Deleted')
 }
 
 async function cloneAutolinkReferences(
   api: InstanceType<typeof GitHub>,
-  repository: any /* TODO */,
-  template: any /* TODO */
+  repository: RepoCreateInOrgResponse,
+  template: RepoGetResponse
 ): Promise<void> {
-  core.info('Autolink references')
+  const templateReferences = await api.paginate(api.rest.repos.listAutolinks, {
+    owner: template.owner.login,
+    repo: template.name
+  })
+  core.info('Adding new Autolink References')
+  for (const reference of templateReferences) {
+    await api.rest.repos.createAutolink({
+      owner: repository.owner.login,
+      repo: repository.name,
+      key_prefix: reference.key_prefix,
+      url_template: reference.url_template
+    })
+  }
+  core.info('Autolink References added')
 }
